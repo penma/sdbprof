@@ -43,6 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="EventCompositePacket.cs" />
+    <Compile Include="EventRequestPacket.cs" />
     <Compile Include="IReplyPacket.cs" />
     <Compile Include="IRequestPacket.cs" />
     <Compile Include="MethodGetNamePacket.cs" />

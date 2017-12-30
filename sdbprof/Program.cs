@@ -75,6 +75,24 @@ namespace sdbprof
             counterUntilVmResume--;
         }
 
+        private struct EventRequest
+        {
+            public UInt32 requestId;
+            public EventKind eventKind;
+            public EventRequest(UInt32 requestId, EventKind eventKind)
+            {
+                this.requestId = requestId;
+                this.eventKind = eventKind;
+            }
+        }
+        private static List<EventRequest> registeredEvents = new List<EventRequest>();
+        private static void registerEvent(EventRequestSetRequest req)
+        {
+            Console.WriteLine("Registering " + req);
+            EventRequestSetReply re = sdb.SendPacketToStreamSync(req) as EventRequestSetReply;
+            registeredEvents.Add(new EventRequest(re.eventRequestId, req.eventKind));
+        }
+
         public static void Main(string[] args)
         {
             sdb = new SDB("127.0.0.1", 55555);
@@ -95,6 +113,20 @@ namespace sdbprof
                     Console.WriteLine("[+] All frames dumped, resuming VM now");
                     sdb.SendPacketToStream(new VMResumeRequest(), (reply, data) => { Console.WriteLine("[+] VM resumed"); });
                     vmStillSuspended = false;
+
+                    registerEvent(new EventRequestSetRequest(EventKind.METHOD_ENTRY, SuspendPolicy.NONE));
+                    registerEvent(new EventRequestSetRequest(EventKind.METHOD_EXIT, SuspendPolicy.NONE));
+                }
+
+                if (Console.KeyAvailable)
+                {
+                    Console.WriteLine("[*] Removing all event requests");
+                    foreach (EventRequest re in registeredEvents)
+                    {
+                        sdb.SendPacketToStreamSync(new EventRequestClearRequest(re.eventKind, re.requestId));
+                    }
+                    registeredEvents.Clear();
+                    Console.WriteLine("[+] All event requests removed");
                 }
             }
         }

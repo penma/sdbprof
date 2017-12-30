@@ -153,7 +153,7 @@ namespace sdbprof
         SET_IP = 7
     }
     
-    public enum CmdEvent : byte {
+    public enum CmdEventRequest : byte {
         SET = 1,
         CLEAR = 2,
         CLEAR_ALL_BREAKPOINTS = 3
