@@ -1,30 +1,29 @@
 ﻿using System;
+using System.IO;
 using System.Text;
 
 namespace sdbprof
 {
-#if false
-    /* TODO: We may receive those */
-    internal class EventCompositePacket : RequestFrame
+    public class EventCompositePacket : IRequestPacket
     {
-        public byte suspendPolicy;
+        public SuspendPolicy suspendPolicy;
         public DebugEvent[] events;
 
-        public EventCompositePacket(uint id, byte flags, byte[] extraData)
+        public static EventCompositePacket DecodeFrame(RequestFrame requestFrame)
         {
-            this.id = id;
-            this.flags = flags;
-            this.extraData = extraData;
+            EventCompositePacket ecp = new EventCompositePacket();
 
-            this.suspendPolicy = extraData[0];
-            int nEvents = (int) Unpack.UInt32(extraData, 1);
-            this.events = new DebugEvent[nEvents];
-
-            int offset = 5;
-            for (int i = 0; i < nEvents; i++)
+            using (MemoryStream ms = new MemoryStream(requestFrame.extraData, false))
             {
-                this.events[i] = new DebugEvent(extraData, ref offset);
+                ecp.suspendPolicy = (SuspendPolicy)ms.ReadByte();
+                UInt32 len = ms.Read32BE();
+                ecp.events = new DebugEvent[len];
+                for (int i = 0; i < len; i++)
+                {
+                    ecp.events[i] = DebugEvent.FromStream(ms);
+                }
             }
+            return ecp;
         }
 
         public override string ToString()
@@ -38,9 +37,19 @@ namespace sdbprof
             sb.Append('>');
             return sb.ToString();
         }
+
+        public RequestFrame MakeRequestFrame()
+        {
+            throw new NotImplementedException();
+        }
+
+        public IReplyPacket DecodeReplyFrame(ReplyFrame replyFrame)
+        {
+            throw new NotImplementedException();
+        }
     }
 
-    internal class DebugEvent
+    public class DebugEvent
     {
         public EventKind eventKind;
         public UInt32 requestId;
@@ -55,14 +64,15 @@ namespace sdbprof
         public byte[] logCategory;
         public byte[] logMessage;
 
-        public DebugEvent(byte[] extraData, ref int offset)
+        public static DebugEvent FromStream(Stream ms)
         {
-            eventKind = (EventKind) extraData[offset + 0];
-            requestId = Unpack.UInt32(extraData, offset + 1);
-            threadId = Unpack.UInt32(extraData, offset + 5);
-            offset += 9;
+            DebugEvent e = new DebugEvent();
 
-            switch (eventKind)
+            e.eventKind = (EventKind)ms.ReadByte();
+            e.requestId = ms.Read32BE();
+            e.threadId = ms.Read32BE();
+
+            switch (e.eventKind)
             {
                 case EventKind.THREAD_START:
                 case EventKind.THREAD_DEATH:
@@ -70,59 +80,55 @@ namespace sdbprof
                 case EventKind.APPDOMAIN_CREATE:
                 case EventKind.APPDOMAIN_UNLOAD:
                 case EventKind.VM_START:
-                    domainId = Unpack.UInt32(extraData, offset);
-                    offset += 4;
+                    e.domainId = ms.Read32BE();
                     break;
                 case EventKind.METHOD_ENTRY:
                 case EventKind.METHOD_EXIT:
-                    methodId = Unpack.UInt32(extraData, offset);
-                    offset += 4;
+                    e.methodId = ms.Read32BE();
                     break;
                 case EventKind.ASSEMBLY_LOAD:
                 case EventKind.ASSEMBLY_UNLOAD:
-                    assemblyId = Unpack.UInt32(extraData, offset);
-                    offset += 4;
+                    e.assemblyId = ms.Read32BE();
                     break;
                 case EventKind.TYPE_LOAD:
-                    typeId = Unpack.UInt32(extraData, offset);
-                    offset += 4;
+                    e.typeId = ms.Read32BE();
                     break;
                 case EventKind.BREAKPOINT:
                 case EventKind.STEP:
-                    methodId = Unpack.UInt32(extraData, offset);
-                    ilOffset = Unpack.UInt64(extraData, offset + 4);
-                    offset += 12;
+                    e.methodId = ms.Read32BE();
+                    e.ilOffset = ms.Read64BE();
                     break;
                 case EventKind.VM_DEATH:
                     /* TODO: may add an int32 in some protocol versions */
                     break;
                 case EventKind.EXCEPTION:
-                    exceptionId = Unpack.UInt32(extraData, offset);
-                    offset += 4;
+                    e.exceptionId = ms.Read32BE();
                     break;
                 case EventKind.USER_BREAK:
                 case EventKind.KEEPALIVE:
                     break;
                 case EventKind.USER_LOG:
-                    logLevel = Unpack.UInt32(extraData, offset);
-                    offset += 4;
-                    logCategory = Unpack.String(extraData, offset);
-                    offset += 4 + logCategory.Length;
-                    logMessage = Unpack.String(extraData, offset);
-                    offset += 4 + logMessage.Length;
+                    e.logLevel = ms.Read32BE();
+                    e.logCategory = ms.ReadBytebuf();
+                    e.logMessage = ms.ReadBytebuf();
                     break;
                 default:
-                    throw new Exception("Invalid EventKind " + eventKind + ", couldn't unpack");
+                    throw new Exception("Invalid EventKind " + e.eventKind + ", couldn't unpack");
             }
+
+            return e;
         }
 
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("{0} req={1} thread={2}", eventKind.ToString(), requestId, threadId);
+            if (eventKind == EventKind.METHOD_ENTRY || eventKind == EventKind.METHOD_EXIT)
+            {
+                sb.AppendFormat(" methodId={0}", methodId);
+            }
             /* TODO: output more fields whe nappropriate */
             return sb.ToString();
         }
     }
-#endif
 }

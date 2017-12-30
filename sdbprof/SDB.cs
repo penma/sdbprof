@@ -105,7 +105,16 @@ namespace sdbprof
             }
             else
             {
-                Console.WriteLine("Request frame received: " + frame.ToString());
+                RequestFrame req = frame as RequestFrame;
+                if (req.commandSet == CommandSet.EVENT && req.command == (byte)CmdComposite.COMPOSITE)
+                {
+                    EventCompositePacket ecp = EventCompositePacket.DecodeFrame(req);
+                    Console.WriteLine("Event: " + ecp);
+               }
+                else
+                {
+                    Console.WriteLine("Unknown request frame received: " + frame.ToString());
+                }
             }
         }
 
