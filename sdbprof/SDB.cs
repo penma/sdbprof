@@ -208,7 +208,7 @@ namespace sdbprof
             nextUnusedPacketId++;
 
             /* Send and hope for the best */
-            Console.WriteLine("(Sending frame: " + rf.ToString() + ")");
+            // Console.WriteLine("(Sending frame: " + rf.ToString() + ")");
             rf.ToStream(stream);
 
             while (true)

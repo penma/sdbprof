@@ -42,7 +42,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AssemblyGetLocationPacket.cs" />
     <Compile Include="AssemblyGetNamePacket.cs" />
+    <Compile Include="AssemblyInfo.cs" />
     <Compile Include="DomGetAssembliesPacket.cs" />
     <Compile Include="DomGetRootPacket.cs" />
     <Compile Include="EventCompositePacket.cs" />

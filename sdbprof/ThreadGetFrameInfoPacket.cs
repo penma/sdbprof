@@ -42,7 +42,7 @@ namespace sdbprof
             public UInt32 frameId;
             public UInt32 methodId;
             public UInt32 ilOffset;
-            public byte flags;
+            public StackFrameFlags flags;
         }
         public Frame[] frames;
 
@@ -61,7 +61,7 @@ namespace sdbprof
                     frames[i].frameId = ms.Read32BE();
                     frames[i].methodId = ms.Read32BE();
                     frames[i].ilOffset = ms.Read32BE();
-                    frames[i].flags = (byte)ms.ReadByte();
+                    frames[i].flags = (StackFrameFlags)ms.ReadByte();
                 }
             }
         }

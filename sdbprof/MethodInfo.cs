@@ -15,10 +15,15 @@ namespace sdbprof
         public Dictionary<UInt32, UInt32> ilOffsetsToLineNumbers;
         /* TODO: params, etc. */
 
+        public override string ToString()
+        {
+            return String.Format("{0} in {1} line {2}", GoodName, GoodFilename, LineNumber);
+        }
+
         /* TODO: Equals for checking the methodId behind it, so that method infos compare properly
          * (methodIds are supposed to be unique across a debugging session)
          */
-        
+
         /* Queries the debugger for information about this method ID */
         public static MethodInfo Query(UInt32 methodId)
         {
@@ -57,7 +62,8 @@ namespace sdbprof
             {
                 if (String.IsNullOrWhiteSpace(sourceFilename))
                 {
-                    return declaringType.Classname + ".dll"; // XXX
+                    AssemblyInfo a = AssemblyInfo.GetOrQueryAssemblyInfo(declaringType.AssemblyId);
+                    return a.GoodFilename;
                 }
                 else
                 {
