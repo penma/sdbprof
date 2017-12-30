@@ -3,7 +3,9 @@ using System.Text;
 
 namespace sdbprof
 {
-    internal class EventCompositePacket : RequestPacket
+#if false
+    /* TODO: We may receive those */
+    internal class EventCompositePacket : RequestFrame
     {
         public byte suspendPolicy;
         public DebugEvent[] events;
@@ -122,4 +124,5 @@ namespace sdbprof
             return sb.ToString();
         }
     }
+#endif
 }

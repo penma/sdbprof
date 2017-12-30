@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -35,34 +36,6 @@ namespace sdbprof
             Console.WriteLine("Received " + recvlen + " bytes: <" + Encoding.ASCII.GetString(recvbuf, 0, recvlen) + ">");
         }
 
-        private void PutUInt32(UInt32 val, byte[] buf, int offset)
-        {
-            buf[offset + 0] = (byte)((val >> 24) & 0xff);
-            buf[offset + 1] = (byte)((val >> 16) & 0xff);
-            buf[offset + 2] = (byte)((val >> 8) & 0xff);
-            buf[offset + 3] = (byte)((val >> 0) & 0xff);
-        }
-
-        private void PutUInt32(Int32 val, byte[] buf, int offset)
-        {
-            /* TODO: May truncate stuff */
-            PutUInt32((UInt32)val, buf, offset);
-        }
-
-        private UInt32 ReadUInt32()
-        {
-            byte[] buf = new byte[4];
-            stream.Read(buf, 0, 4);
-            return Unpack.UInt32(buf);
-        }
-
-        private UInt16 ReadUInt16()
-        {
-            byte[] buf = new byte[2];
-            stream.Read(buf, 0, 2);
-            return Unpack.UInt16(buf);
-        }
-
         public static string DumpByteArray(byte[] ba)
         {
             StringBuilder sb = new StringBuilder();
@@ -74,90 +47,65 @@ namespace sdbprof
             return sb.ToString();
         }
 
-        public Packet ReadPacketFromStream()
+        /* Handling replies */
+
+        private class OutstandingPacketData
         {
-            UInt32 len = ReadUInt32();
-            UInt32 id = ReadUInt32();
-            byte flags = (byte) stream.ReadByte();
-            byte nextHi = (byte)stream.ReadByte();
-            byte nextLo = (byte)stream.ReadByte();
-            byte[] extraData = new byte[len];
-            stream.Read(extraData, 0, (int)len - 11);
-
-            /*
-            Console.WriteLine(String.Format("Packet data read: {0:X8} {1:X8} {2:X2} {3:X2} {4:X2}  {5}",
-                len, id, flags, nextHi, nextLo, DumpByteArray(extraData)));
-            */
-
-            if ((flags & 0x80) != 0)
+            private RequestFrame requestFrame;
+            private IRequestPacket requestPacket;
+            private Action<IReplyPacket> onReply;
+            public OutstandingPacketData(RequestFrame requestFrame, IRequestPacket requestPacket, Action<IReplyPacket> onReply)
             {
-                return DecodeReplyPacket(id, flags, (UInt16)((nextHi << 8) | (nextLo << 0)), extraData);
-            } else
+                this.requestFrame = requestFrame;
+                this.requestPacket = requestPacket;
+                this.onReply = onReply;
+            }
+            public void Execute(ReplyFrame replyFrame)
             {
-                return DecodeRequestPacket(id, flags, nextHi, nextLo, extraData);
+                this.onReply(requestPacket.DecodeReplyFrame(replyFrame));
             }
         }
 
-        private RequestPacket DecodeRequestPacket(UInt32 id, byte flags, byte set, byte cmd, byte[] extraData)
+        private Dictionary<UInt32, OutstandingPacketData> outstanding = new Dictionary<UInt32, OutstandingPacketData>();
+
+        public void ProcessReplies()
         {
-            if (set == 64 /* Events */)
+            while (stream.DataAvailable)
             {
-                /* Events */
-                if (cmd == 100 /* Composite */)
+                Frame frame = Frame.ReadFromStream(stream);
+                if (frame is ReplyFrame)
                 {
-                    return new EventCompositePacket(id, flags, extraData);
+                    if (outstanding.ContainsKey(frame.id))
+                    {
+                        outstanding[frame.id].Execute(frame as ReplyFrame);
+                        outstanding.Remove(frame.id);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Reply for unknown request received! " + frame.ToString());
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Request frame received: " + frame.ToString());
                 }
             }
-            return new UnknownRequestPacket(id, flags, set, cmd, extraData);
         }
 
-        private ReplyPacket DecodeReplyPacket(UInt32 id, byte flags, UInt16 errorCode, byte[] extraData)
-        {
-            /* TODO: We need to store at least the type of every request sent, otherwise we will never know how to decode */
-            return new UnknownReplyPacket(id, flags, errorCode, extraData);
-        }
+        /* Send a packet and do something on reply */
 
-        public void SendPacketToStream(Packet packet)
+        public void SendPacketToStream(IRequestPacket request, Action<IReplyPacket> onReply)
         {
-            if (packet is RequestPacket)
-            {
-                /* Give it an unique id */
-                packet.id = nextUnusedPacketId;
-                nextUnusedPacketId++;
-            }
-            using (MemoryStream ms = new MemoryStream())
-            {
-                packet.ToStream(ms);
-                // Console.WriteLine("Sending packet <" + DumpByteArray(ms.ToArray()) + ">");
-                stream.Write(ms.ToArray(), 0, (int) ms.Length);
-            }
+            /* Turn into a frame */
+            RequestFrame rf = request.MakeRequestFrame();
 
-            /* TODO: We might have to process a reply here ... or do we */
-        }
-
-        public void SendPacket(byte set, byte cmd, byte[] data)
-        {
-            byte[] sendbuf = new byte[1024];
-            PutUInt32(11 + data.Length, sendbuf, 0);
-            PutUInt32(nextUnusedPacketId, sendbuf, 4);
+            /* Give it an unique id and store the action to be executed later */
+            rf.id = nextUnusedPacketId;
+            outstanding[rf.id] = new OutstandingPacketData(rf, request, onReply);
             nextUnusedPacketId++;
-            sendbuf[8] = 0x00;
-            sendbuf[9] = set;
-            sendbuf[10] = cmd;
 
-            Array.Copy(data, 0, sendbuf, 11, data.Length);
-
-            sdb.Send(sendbuf, 11 + data.Length, SocketFlags.None);
-
-            byte[] recvbuf = new byte[1024];
-            int recvlen = sdb.Receive(recvbuf);
-
-            Console.Write("Received " + recvlen + " bytes: <");
-            for (int i = 0; i < recvlen; i++)
-            {
-                Console.Write(recvbuf[i].ToString("X2") + " ");
-            }
-            Console.WriteLine(">");
+            /* Send and hope for the best */
+            rf.ToStream(stream);
         }
     }
 }
