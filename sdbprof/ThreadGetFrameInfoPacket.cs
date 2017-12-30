@@ -33,18 +33,19 @@ namespace sdbprof
         }
     }
 
+    public struct ThreadFrame
+    {
+        public UInt32 frameId;
+        public UInt32 methodId;
+        public UInt32 ilOffset;
+        public StackFrameFlags flags;
+    }
+
     public class ThreadGetFrameInfoReply : IReplyPacket
     {
         public UInt32 threadId;
 
-        public struct Frame
-        {
-            public UInt32 frameId;
-            public UInt32 methodId;
-            public UInt32 ilOffset;
-            public StackFrameFlags flags;
-        }
-        public Frame[] frames;
+        public ThreadFrame[] frames;
 
         public ThreadGetFrameInfoReply(ReplyFrame replyFrame, UInt32 threadId)
         {
@@ -55,7 +56,7 @@ namespace sdbprof
             this.threadId = threadId;
             using (MemoryStream ms = new MemoryStream(replyFrame.extraData, false))
             {
-                frames = new Frame[ms.Read32BE()];
+                frames = new ThreadFrame[ms.Read32BE()];
                 for (int i = 0; i < frames.Length; i++)
                 {
                     frames[i].frameId = ms.Read32BE();

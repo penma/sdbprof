@@ -118,7 +118,6 @@ namespace sdbprof
                 if (frameCounter % 100000 == 0)
                 {
                     Console.WriteLine("... {0} (most recent frame: {1})", frameCounter, EventCompositePacket.DecodeFrame(frame as RequestFrame));
-                    Program.CheckTermination();
                 }
                 if (frameCounter > 123456)
                 {
@@ -216,7 +215,6 @@ namespace sdbprof
                 Frame frame = Frame.ReadFromStream(stream);
                 if (frame.id == rf.id && frame is ReplyFrame)
                 {
-                    Program.CheckTermination();
                     return request.DecodeReplyFrame(frame as ReplyFrame);
                 }
 
