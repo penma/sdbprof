@@ -21,6 +21,7 @@ namespace sdbprof
                 for (int i = 0; i < len; i++)
                 {
                     ecp.events[i] = DebugEvent.FromStream(ms);
+                    ecp.events[i].timestamp = requestFrame.timestamp;
                 }
             }
             return ecp;
@@ -63,6 +64,8 @@ namespace sdbprof
         public UInt32 logLevel;
         public byte[] logCategory;
         public byte[] logMessage;
+
+        public long timestamp;
 
         public static DebugEvent FromStream(Stream ms)
         {

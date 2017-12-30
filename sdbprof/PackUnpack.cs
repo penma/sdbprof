@@ -68,5 +68,10 @@ namespace sdbprof
             buf[3] = (byte)(v >> 0);
             return buf;
         }
+
+        public static UInt32 Unpack32BE(byte[] buf)
+        {
+            return (UInt32)((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | (buf[3] << 0));
+        }
     }
 }

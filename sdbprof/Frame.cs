@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace sdbprof
@@ -8,6 +9,7 @@ namespace sdbprof
         public UInt32 id;
         public byte flags;
         public byte[] extraData;
+        public long timestamp;
 
         public static Frame ReadFromStream(Stream stream)
         {
@@ -29,9 +31,13 @@ namespace sdbprof
                 frame = new RequestFrame(set, cmd);
             }
 
+            frame.timestamp = Stopwatch.GetTimestamp();
             frame.id = id;
             frame.extraData = new byte[len];
-            stream.Read(frame.extraData, 0, len);
+            if (len > 0) // even with len 0, Read will block
+            {
+                stream.Read(frame.extraData, 0, len);
+            }
 
             return frame;
         }

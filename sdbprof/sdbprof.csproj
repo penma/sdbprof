@@ -42,11 +42,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AssemblyGetNamePacket.cs" />
+    <Compile Include="DomGetAssembliesPacket.cs" />
+    <Compile Include="DomGetRootPacket.cs" />
     <Compile Include="EventCompositePacket.cs" />
     <Compile Include="EventRequestPacket.cs" />
+    <Compile Include="InferredThreadCallstack.cs" />
     <Compile Include="IReplyPacket.cs" />
     <Compile Include="IRequestPacket.cs" />
+    <Compile Include="MethodGetDebugInfoPacket.cs" />
+    <Compile Include="MethodGetDeclaringTypePacket.cs" />
     <Compile Include="MethodGetNamePacket.cs" />
+    <Compile Include="MethodInfo.cs" />
     <Compile Include="PackUnpack.cs" />
     <Compile Include="Frame.cs" />
     <Compile Include="ProtoEnums.cs" />
@@ -57,6 +64,8 @@
     <Compile Include="SDB.cs" />
     <Compile Include="ThreadGetFrameInfoPacket.cs" />
     <Compile Include="ThreadGetNamePacket.cs" />
+    <Compile Include="TypeGetInfoPacket.cs" />
+    <Compile Include="TypeInfo.cs" />
     <Compile Include="VMAllThreadsPacket.cs" />
     <Compile Include="VMSuspendResumePacket.cs" />
     <Compile Include="VMVersionPacket.cs" />

@@ -47,11 +47,18 @@ namespace sdbprof
             return sb.ToString();
         }
 
+        /* Handling events */
+        private Action<DebugEvent> onEventAction = null;
+        public void OnEvent(Action<DebugEvent> action)
+        {
+            onEventAction = action;
+        }
+
         /* Handling replies */
 
         private class OutstandingPacketData
         {
-            private RequestFrame requestFrame;
+            public RequestFrame requestFrame;
             private IRequestPacket requestPacket;
             private Action<IReplyPacket, object> onReply;
             private object onReplyData;
@@ -64,7 +71,10 @@ namespace sdbprof
             }
             public void Execute(ReplyFrame replyFrame)
             {
-                this.onReply(requestPacket.DecodeReplyFrame(replyFrame), onReplyData);
+                if (this.onReply != null)
+                {
+                    this.onReply(requestPacket.DecodeReplyFrame(replyFrame), onReplyData);
+                }
             }
         }
 
@@ -72,6 +82,9 @@ namespace sdbprof
 
         /* Postponed replies in case someone wanted a synchronous answer */
         private Queue<Frame> postponedFrames = new Queue<Frame>();
+
+        /* Events to be processed */
+        private Queue<RequestFrame> eventFrameQueue = new Queue<RequestFrame>();
 
         public void ProcessReplies()
         {
@@ -81,11 +94,49 @@ namespace sdbprof
                 ProcessFrame(postponedFrames.Dequeue());
             }
 
+#if false
             while (stream.DataAvailable)
             {
                 Frame frame = Frame.ReadFromStream(stream);
                 ProcessFrame(frame);
             }
+#endif
+            /* Read as many frames as possible to reduce possible timestamp
+             * error.
+             * Event frames are filtered out later: Instead of processing them
+             * immediately, "processing" them means putting them into a queue
+             * that is occasionally processed.
+             */
+            int frameCounter = 0;
+            while (stream.DataAvailable) // XXX was DataAvailable
+            {
+                stream.ReadTimeout = 10;
+                Frame frame = Frame.ReadFromStream(stream);
+                if (frame == null) { break;  }
+                postponedFrames.Enqueue(frame);
+                frameCounter++;
+                if (frameCounter % 100000 == 0)
+                {
+                    Console.WriteLine("... {0} (most recent frame: {1})", frameCounter, EventCompositePacket.DecodeFrame(frame as RequestFrame));
+                    Program.CheckTermination();
+                }
+                if (frameCounter > 123456)
+                {
+                    Console.WriteLine("Too many frames, processing some");
+                    break;
+                }
+            }
+
+            if (frameCounter + eventFrameQueue.Count > 0) Console.WriteLine("Recorded {0} frames to be processed ({1} still in event queue)", frameCounter, eventFrameQueue.Count);
+
+            int eventsProcessed = 0;
+            while (eventFrameQueue.Count > 0 && eventsProcessed < 1000)
+            {
+                ProcessEventFrame(eventFrameQueue.Dequeue());
+                eventsProcessed++;
+            }
+
+            if (eventsProcessed + eventFrameQueue.Count > 0) Console.WriteLine("Also processed {0} events frames ({1} still in event queue)", eventsProcessed, eventFrameQueue.Count);
         }
 
         private void ProcessFrame(Frame frame)
@@ -108,12 +159,24 @@ namespace sdbprof
                 RequestFrame req = frame as RequestFrame;
                 if (req.commandSet == CommandSet.EVENT && req.command == (byte)CmdComposite.COMPOSITE)
                 {
-                    EventCompositePacket ecp = EventCompositePacket.DecodeFrame(req);
-                    Console.WriteLine("Event: " + ecp);
-               }
+                    /* Store frame, process it later */
+                    // ENQ eventFrameQueue.Enqueue(req);
+                }
                 else
                 {
                     Console.WriteLine("Unknown request frame received: " + frame.ToString());
+                }
+            }
+        }
+
+        private void ProcessEventFrame(RequestFrame req)
+        {
+            EventCompositePacket ecp = EventCompositePacket.DecodeFrame(req);
+            if (onEventAction != null)
+            {
+                foreach (DebugEvent e in ecp.events)
+                {
+                    onEventAction(e);
                 }
             }
         }
@@ -145,20 +208,37 @@ namespace sdbprof
             nextUnusedPacketId++;
 
             /* Send and hope for the best */
-            // Console.WriteLine("(Sending frame: " + rf.ToString() + ")");
+            Console.WriteLine("(Sending frame: " + rf.ToString() + ")");
             rf.ToStream(stream);
 
             while (true)
             {
                 Frame frame = Frame.ReadFromStream(stream);
-                if (!(frame.id == rf.id && frame is ReplyFrame))
+                if (frame.id == rf.id && frame is ReplyFrame)
                 {
-                    // Console.WriteLine("Postponing a frame");
+                    Program.CheckTermination();
+                    return request.DecodeReplyFrame(frame as ReplyFrame);
+                }
+
+                /* Postpone */
+                if (frame is ReplyFrame)
+                {
+                    Console.WriteLine("Postponing a non-event frame\n  Request: {0}\n  Reply: {1}", outstanding[frame.id].requestFrame, frame);
                     postponedFrames.Enqueue(frame);
                 }
                 else
                 {
-                    return request.DecodeReplyFrame(frame as ReplyFrame);
+                    RequestFrame req = frame as RequestFrame;
+                    if (req.commandSet == CommandSet.EVENT && req.command == (byte)CmdComposite.COMPOSITE)
+                    {
+                        /* Store frame, process it later */
+                        // ENQ eventFrameQueue.Enqueue(req);
+                    }
+                    else
+                    {
+                        // XXX shouldn't handle it here, but makes no sense right now to enqueue because it won't be processed anyway
+                        Console.WriteLine("Unknown request frame received: " + frame.ToString());
+                    }
                 }
             }
         }

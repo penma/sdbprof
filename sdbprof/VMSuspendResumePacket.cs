@@ -33,6 +33,20 @@ namespace sdbprof
         }
     }
 
+    public class VMDisposeRequest : IRequestPacket
+    {
+        public RequestFrame MakeRequestFrame()
+        {
+            return new RequestFrame(CommandSet.VM, (byte)CmdVM.DISPOSE);
+        }
+
+        public IReplyPacket DecodeReplyFrame(ReplyFrame replyFrame)
+        {
+            /* Never gets a reply, but get error handling anyway - or so XXX */
+            return new EmptyReply(replyFrame);
+        }
+    }
+
     public class EmptyReply : IReplyPacket
     {
         public EmptyReply(ReplyFrame replyFrame)
