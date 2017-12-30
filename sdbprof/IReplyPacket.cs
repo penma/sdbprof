@@ -1,6 +1,7 @@
 ﻿namespace sdbprof
 {
-    public interface IReplyPacket
+    public abstract class IReplyPacket
     {
+        public ErrorCode errorCode; /* TODO: Set everywhere */
     }
 }

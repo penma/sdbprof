@@ -58,5 +58,15 @@ namespace sdbprof
         {
             return Encoding.UTF8.GetString(s.ReadBytebuf());
         }
+
+        public static byte[] Pack32BE(UInt32 v)
+        {
+            byte[] buf = new byte[4];
+            buf[0] = (byte)(v >> 24);
+            buf[1] = (byte)(v >> 16);
+            buf[2] = (byte)(v >> 8);
+            buf[3] = (byte)(v >> 0);
+            return buf;
+        }
     }
 }

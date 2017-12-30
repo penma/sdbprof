@@ -53,59 +53,105 @@ namespace sdbprof
         {
             private RequestFrame requestFrame;
             private IRequestPacket requestPacket;
-            private Action<IReplyPacket> onReply;
-            public OutstandingPacketData(RequestFrame requestFrame, IRequestPacket requestPacket, Action<IReplyPacket> onReply)
+            private Action<IReplyPacket, object> onReply;
+            private object onReplyData;
+            public OutstandingPacketData(RequestFrame requestFrame, IRequestPacket requestPacket, Action<IReplyPacket, object> onReply, object onReplyData)
             {
                 this.requestFrame = requestFrame;
                 this.requestPacket = requestPacket;
                 this.onReply = onReply;
+                this.onReplyData = onReplyData;
             }
             public void Execute(ReplyFrame replyFrame)
             {
-                this.onReply(requestPacket.DecodeReplyFrame(replyFrame));
+                this.onReply(requestPacket.DecodeReplyFrame(replyFrame), onReplyData);
             }
         }
 
         private Dictionary<UInt32, OutstandingPacketData> outstanding = new Dictionary<UInt32, OutstandingPacketData>();
 
+        /* Postponed replies in case someone wanted a synchronous answer */
+        private Queue<Frame> postponedFrames = new Queue<Frame>();
+
         public void ProcessReplies()
         {
+            while (postponedFrames.Count > 0)
+            {
+                // Console.WriteLine("(processing postponed frame)");
+                ProcessFrame(postponedFrames.Dequeue());
+            }
+
             while (stream.DataAvailable)
             {
                 Frame frame = Frame.ReadFromStream(stream);
-                if (frame is ReplyFrame)
+                ProcessFrame(frame);
+            }
+        }
+
+        private void ProcessFrame(Frame frame)
+        {
+            //Console.WriteLine("(Received frame: " + frame.ToString() + ")");
+            if (frame is ReplyFrame)
+            {
+                if (outstanding.ContainsKey(frame.id))
                 {
-                    if (outstanding.ContainsKey(frame.id))
-                    {
-                        outstanding[frame.id].Execute(frame as ReplyFrame);
-                        outstanding.Remove(frame.id);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Reply for unknown request received! " + frame.ToString());
-                    }
+                    outstanding[frame.id].Execute(frame as ReplyFrame);
+                    outstanding.Remove(frame.id);
                 }
                 else
                 {
-                    Console.WriteLine("Request frame received: " + frame.ToString());
+                    Console.WriteLine("Reply for unknown request received! " + frame.ToString());
                 }
+            }
+            else
+            {
+                Console.WriteLine("Request frame received: " + frame.ToString());
             }
         }
 
         /* Send a packet and do something on reply */
 
-        public void SendPacketToStream(IRequestPacket request, Action<IReplyPacket> onReply)
+        public void SendPacketToStream(IRequestPacket request, Action<IReplyPacket, object> onReply, object onReplyData = null)
         {
             /* Turn into a frame */
             RequestFrame rf = request.MakeRequestFrame();
 
             /* Give it an unique id and store the action to be executed later */
             rf.id = nextUnusedPacketId;
-            outstanding[rf.id] = new OutstandingPacketData(rf, request, onReply);
+            outstanding[rf.id] = new OutstandingPacketData(rf, request, onReply, onReplyData);
             nextUnusedPacketId++;
 
             /* Send and hope for the best */
+            // Console.WriteLine("(Sending frame: " + rf.ToString() + ")");
             rf.ToStream(stream);
+        }
+
+        public IReplyPacket SendPacketToStreamSync(IRequestPacket request)
+        {
+            /* Turn into a frame */
+            RequestFrame rf = request.MakeRequestFrame();
+
+            /* Give it an unique id and store the action to be executed later */
+            rf.id = nextUnusedPacketId;
+            nextUnusedPacketId++;
+
+            /* Send and hope for the best */
+            // Console.WriteLine("(Sending frame: " + rf.ToString() + ")");
+            rf.ToStream(stream);
+
+            while (true)
+            {
+                Frame frame = Frame.ReadFromStream(stream);
+                if (!(frame.id == rf.id && frame is ReplyFrame))
+                {
+                    // Console.WriteLine("Postponing a frame");
+                    postponedFrames.Enqueue(frame);
+                }
+                else
+                {
+                    return request.DecodeReplyFrame(frame as ReplyFrame);
+                }
+            }
         }
     }
 }

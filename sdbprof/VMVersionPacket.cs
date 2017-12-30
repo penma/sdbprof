@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace sdbprof
 {
-    public class VMVersionRequestPacket : IRequestPacket
+    public class VMVersionRequest : IRequestPacket
     {
         public RequestFrame MakeRequestFrame()
         {
@@ -16,17 +16,17 @@ namespace sdbprof
 
         public IReplyPacket DecodeReplyFrame(ReplyFrame replyFrame)
         {
-            return new VMVersionReplyPacket(replyFrame);
+            return new VMVersionReply(replyFrame);
         }
     }
 
-    public class VMVersionReplyPacket : IReplyPacket
+    public class VMVersionReply : IReplyPacket
     {
         public string vmInfo;
         public UInt32 major;
         public UInt32 minor;
 
-        public VMVersionReplyPacket(ReplyFrame replyFrame) {
+        public VMVersionReply(ReplyFrame replyFrame) {
             using (MemoryStream ms = new MemoryStream(replyFrame.extraData, false))
             {
                 this.vmInfo = ms.ReadUTF8String();

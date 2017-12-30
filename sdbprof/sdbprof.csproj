@@ -45,6 +45,7 @@
     <Compile Include="EventCompositePacket.cs" />
     <Compile Include="IReplyPacket.cs" />
     <Compile Include="IRequestPacket.cs" />
+    <Compile Include="MethodGetNamePacket.cs" />
     <Compile Include="PackUnpack.cs" />
     <Compile Include="Frame.cs" />
     <Compile Include="ProtoEnums.cs" />
@@ -53,6 +54,10 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SDB.cs" />
+    <Compile Include="ThreadGetFrameInfoPacket.cs" />
+    <Compile Include="ThreadGetNamePacket.cs" />
+    <Compile Include="VMAllThreadsPacket.cs" />
+    <Compile Include="VMSuspendResumePacket.cs" />
     <Compile Include="VMVersionPacket.cs" />
   </ItemGroup>
   <ItemGroup>
