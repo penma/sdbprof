@@ -13,6 +13,23 @@ namespace sdbprof
         public static SDB sdb;
         public static StreamWriter profileStream = null;
         
+        /* Contains all method IDs for which a filename and a function name is already known in the profile file */
+        private static HashSet<UInt32> profileKnownMethods = new HashSet<uint>();
+
+        private static String MakeMethodReference(UInt32 methodId, MethodInfo mi, String flStr, String fnStr)
+        {
+            if (profileKnownMethods.Contains(methodId))
+            {
+                return String.Format("{1}=({0})\n{2}=({0})", methodId, flStr, fnStr);
+            }
+            else
+            {
+                profileKnownMethods.Add(methodId);
+                return String.Format("{3}=({0}) {1}\n{4}=({0}) {2}", methodId, mi.GoodFilename,
+                            mi.GoodName, flStr, fnStr);
+            }
+        }
+
         private static void ReopenProfileStream()
         {
             if (profileStream != null)
@@ -21,6 +38,7 @@ namespace sdbprof
             }
             profileStream = new StreamWriter("callgrind.out"); /* XXX error handling, overwrite, etc. */
             profileStream.Write("# callgrind format\nevents: hit\n\n");
+            profileKnownMethods.Clear();
             Console.WriteLine("[+] Profile file callgrind.out opened");
         }
         
@@ -172,9 +190,8 @@ namespace sdbprof
                     if (frames.Length > 0)
                     {
                         MethodInfo currentMethod = MethodInfo.GetOrQueryMethodInfo(frames[0].methodId);
-                        Program.profileStream.Write("fl={0}\nfn={1}\n{2} 1\n",
-                            currentMethod.GoodFilename,
-                            currentMethod.GoodName,
+                        Program.profileStream.Write("{0}\n{1} 1\n",
+                            MakeMethodReference(frames[0].methodId, currentMethod, "fl", "fn"),
                             currentMethod.LineNumber
                             );
                         /* Dump all callers as well */
@@ -184,12 +201,10 @@ namespace sdbprof
                             ThreadFrame callee = frames[i - 1];
                             MethodInfo calleeMethod = MethodInfo.GetOrQueryMethodInfo(callee.methodId);
                             MethodInfo callerMethod = MethodInfo.GetOrQueryMethodInfo(caller.methodId);
-                            Program.profileStream.Write("fl={3}\nfn={4}\n{5} 0\ncfi={0}\ncfn={1}\ncalls=1 {2}\n{5} 1\n",
-                                calleeMethod.GoodFilename,
-                                calleeMethod.GoodName,
+                            Program.profileStream.Write("{2}\n{3} 0\n{0}\ncalls=1 {1}\n{3} 1\n",
+                                MakeMethodReference(callee.methodId, calleeMethod, "cfi", "cfn"),
                                 calleeMethod.LineNumber,
-                                callerMethod.GoodFilename,
-                                callerMethod.GoodName,
+                                MakeMethodReference(caller.methodId, callerMethod, "fl", "fn"),
                                 callerMethod.LineNumber
                                 );
                         }
