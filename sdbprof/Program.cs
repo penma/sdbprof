@@ -1,6 +1,7 @@
 ﻿
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -36,10 +37,11 @@ namespace sdbprof
             {
                 profileStream.Close();
             }
-            profileStream = new StreamWriter("callgrind.out"); /* XXX error handling, overwrite, etc. */
+            String newfilename = String.Format("callgrind.{0:yyyyMMdd-HHmmss}.out", DateTime.Now);
+            profileStream = new StreamWriter(newfilename); /* XXX error handling, overwrite, etc. */
             profileStream.Write("# callgrind format\nevents: hit\n\n");
             profileKnownMethods.Clear();
-            Console.WriteLine("[+] Profile file callgrind.out opened");
+            Console.WriteLine("[+] Profile file {0} opened", newfilename);
         }
         
         private static List<EventRequestSetReply> registeredEvents = new List<EventRequestSetReply>();
@@ -170,6 +172,8 @@ namespace sdbprof
 
             bool recording = false;
             int sampleInterval = 20;
+            Stopwatch keepupStopwatch = new Stopwatch();
+            int keepupSamples = 0;
 
             while (true)
             {
@@ -209,6 +213,22 @@ namespace sdbprof
                                 );
                         }
                     }
+
+                    keepupSamples++;
+                    if (keepupStopwatch.ElapsedMilliseconds >= 3000)
+                    {
+                        keepupStopwatch.Stop();
+                        if (keepupSamples > 0)
+                        {
+                            Console.WriteLine("stats: {0} samples in {1} ms = {2} ms per sample (configured: {3})",
+                                keepupSamples, keepupStopwatch.ElapsedMilliseconds,
+                                (float) keepupStopwatch.ElapsedMilliseconds / keepupSamples,
+                                sampleInterval
+                                );
+                        }
+                        keepupSamples = 0;
+                        keepupStopwatch.Restart();
+                    }
                 }
 
                 if (Console.KeyAvailable)
@@ -222,6 +242,8 @@ namespace sdbprof
                             profileStream.Flush();
                             Console.WriteLine("[+] Recording of thread {0} \"{1}\" {2}",
                                 currentThread, GetThreadName(currentThread), act);
+                            keepupStopwatch.Restart();
+                            keepupSamples = 0;
                             break;
                         case ConsoleKey.A:
                             ShowAssemblies();
