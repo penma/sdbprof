@@ -49,6 +49,7 @@
     <Compile Include="DomGetRootPacket.cs" />
     <Compile Include="EventCompositePacket.cs" />
     <Compile Include="EventRequestPacket.cs" />
+    <Compile Include="HackprofPacket.cs" />
     <Compile Include="InferredThreadCallstack.cs" />
     <Compile Include="IReplyPacket.cs" />
     <Compile Include="IRequestPacket.cs" />

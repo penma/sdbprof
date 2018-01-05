@@ -297,6 +297,11 @@ namespace sdbprof
                             sdb.SendPacketToStream(new VMDisposeRequest(), (reply, data) => { });
 
                             return;
+                        case ConsoleKey.D:
+                            Console.WriteLine("Sending hackprof request");
+                            sdb.SendPacketToStreamSync(new HackprofRequest(42, currentThread));
+                            Console.WriteLine("   done");
+                            break;
                         default:
                             Console.WriteLine("[+] Available keys:");
                             Console.WriteLine("    space        Enable/disable tracing");
@@ -306,6 +311,7 @@ namespace sdbprof
                             Console.WriteLine("    s            Show current thread stacktrace");
                             Console.WriteLine("    up/down      Cycle through threads");
                             Console.WriteLine("    left/right   Set sample interval");
+                            Console.WriteLine("    d            Send a request to Hackprof");
                             Console.WriteLine("    q/esc        Shutdown");
                             Console.WriteLine("Status: {0}recording, selected thread {1}, sample interval {2} ms", recording ? "" : "not ", currentThread, sampleInterval);
                             break;
